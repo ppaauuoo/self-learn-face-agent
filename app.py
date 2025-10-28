@@ -57,7 +57,8 @@ def detect_and_recognize_face(image):
         try:
             # Use DeepFace to detect faces
             faces = DeepFace.extract_faces(
-                img_path=tmp_path, detector_backend="opencv", enforce_detection=False
+                img_path=tmp_path,
+                enforce_detection=False,
             )
 
             if not faces or len(faces) == 0:
@@ -66,7 +67,8 @@ def detect_and_recognize_face(image):
 
             # Get face bounding boxes and embeddings
             embedding_objs = DeepFace.represent(
-                img_path=tmp_path, detector_backend="opencv", enforce_detection=False
+                img_path=tmp_path,
+                enforce_detection=False,
             )
 
             if not embedding_objs:
