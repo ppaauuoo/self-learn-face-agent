@@ -3,11 +3,11 @@ import faiss
 from deepface import DeepFace
 
 
-def generate_and_save_embeddings(
+def add_new_embeddings(
     img_path, whoami, index_file="face_embeddings.index", id_file="face_ids.npy"
 ):
-    """Generate face embeddings using DeepFace and save them using Faiss"""
-
+    """Generate face embeddings and append them to existing Faiss database"""
+    
     # Generate embeddings
     embedding_objs = DeepFace.represent(img_path=img_path)
 
@@ -23,27 +23,45 @@ def generate_and_save_embeddings(
 
     # Convert to numpy array
     embeddings_array = np.array(embeddings)
+    
+    try:
+        # Load existing index and face IDs
+        index, face_ids = load_embeddings(index_file, id_file)
+        
+        if index is None or face_ids is None:
+            # If no existing database, create new one
+            print("No existing database found, creating new one...")
+            dimension = embeddings_array.shape[1]
+            index = faiss.IndexFlatL2(dimension)
+            face_ids = np.array([])
+        
+        # Add new embeddings to existing index
+        index.add(embeddings_array)
+        
+        # Add new face IDs
+        new_face_ids = np.array([whoami] * len(embeddings))
+        face_ids = np.concatenate([face_ids, new_face_ids])
+        
+        # Save updated index and face IDs
+        faiss.write_index(index, index_file)
+        np.save(id_file, face_ids)
+        
+        print(f"Added {len(embeddings)} new embeddings for {whoami}")
+        print(f"Total embeddings in database: {index.ntotal}")
+        
+        return embeddings_array
+        
+    except Exception as e:
+        print(f"Error adding new embeddings: {e}")
+        return None
 
-    # Get dimension of embeddings
-    dimension = embeddings_array.shape[1]
 
-    # Create Faiss index
-    index = faiss.IndexFlatL2(dimension)
-
-    # Add embeddings to index
-    index.add(embeddings_array)
-
-    # Save index to file
-    faiss.write_index(index, index_file)
-
-    # Save face IDs (you could associate these with actual person identifiers)
-    face_ids = np.array([whoami] * len(embeddings))
-    np.save(id_file, face_ids)
-
-    print(f"Saved {len(embeddings)} embeddings to {index_file}")
-    print(f"Saved face IDs to {id_file}")
-
-    return embeddings_array
+def generate_and_save_embeddings(
+    img_path, whoami, index_file="face_embeddings.index", id_file="face_ids.npy"
+):
+    """Generate face embeddings using DeepFace and save them using Faiss"""
+    # This function now uses the new append functionality
+    return add_new_embeddings(img_path, whoami, index_file, id_file)
 
 
 def load_embeddings(index_file="face_embeddings.index", id_file="face_ids.npy"):
@@ -57,7 +75,7 @@ def load_embeddings(index_file="face_embeddings.index", id_file="face_ids.npy"):
 
         print(f"Loaded {index.ntotal} embeddings from {index_file}")
         return index, face_ids
-    except Exception as e:
+    except (FileNotFoundError, Exception) as e:
         print(f"Error loading embeddings: {e}")
         return None, None
 

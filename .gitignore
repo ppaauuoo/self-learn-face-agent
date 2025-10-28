@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+.gradio
+face_embeddings.index
+face_embeddings.index
+face_embeddings.index
+face_embeddings.index
+face_embeddings.index
