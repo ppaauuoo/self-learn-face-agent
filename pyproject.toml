@@ -3,10 +3,15 @@ name = "self-learn-face-agent"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
+    "deepface>=0.0.95",
+    "faiss-cpu>=1.12.0",
     "insightface>=0.7.3",
     "onnxruntime>=1.23.2",
     "onnxruntime-gpu>=1.23.2",
     "opencv-python>=4.12.0.88",
+    "retina-face>=0.0.17",
+    "tensorflow>=2.20.0",
+    "tf-keras>=2.20.1",
 ]
