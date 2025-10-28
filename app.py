@@ -7,11 +7,12 @@ from PIL import Image
 import io
 import base64
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from learning import add_new_embeddings, load_embeddings, search_similar_faces
 from deepface import DeepFace
+import datetime
 
 # Initialize LangChain components
 try:
@@ -25,10 +26,13 @@ face_index, face_ids = load_embeddings()
 pending_face = None
 pending_embedding = None
 
+# Global variable to store face recognition event for chatbot
+face_recognition_event = None
+
 
 def detect_and_recognize_face(image):
     """Detect and recognize faces in the uploaded image using DeepFace"""
-    global face_index, face_ids
+    global face_index, face_ids, face_recognition_event
 
     if image is None:
         return None, "No image uploaded", ""
@@ -118,6 +122,16 @@ def detect_and_recognize_face(image):
                         recognition_result = f"Recognized: {recognized_name}"
                         confidence = f"Confidence: {1 - distance:.2f}"
 
+                        # Store face recognition event for chatbot
+                        current_time = datetime.datetime.now().strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
+                        face_recognition_event = {
+                            "name": recognized_name,
+                            "confidence": 1 - distance,
+                            "time": current_time,
+                        }
+
                         # Add label on image
                         cv2.putText(
                             img_bgr,
@@ -196,8 +210,39 @@ def learn_new_face(name):
         return f"Error learning new face: {str(e)}", ""
 
 
+def get_database_info():
+    """Get information about the current face database"""
+    global face_index, face_ids
+
+    if face_index is None or face_ids is None:
+        return "No face database available yet."
+
+    # Count unique faces
+    unique_faces = {}
+    for face_id in face_ids:
+        if face_id in unique_faces:
+            unique_faces[face_id] += 1
+        else:
+            unique_faces[face_id] = 1
+
+    # Create summary
+    total_embeddings = face_index.ntotal
+    unique_names = list(unique_faces.keys())
+
+    info = f"Face database contains {len(unique_names)} unique people with {total_embeddings} total embeddings.\n"
+    info += f"Known people: {', '.join(unique_names)}.\n"
+
+    # Add recent face recognition event if available
+    if face_recognition_event:
+        info += f"Most recent recognition: {face_recognition_event['name']} at {face_recognition_event['time']} (confidence: {face_recognition_event['confidence']:.2f})."
+
+    return info
+
+
 def chat_with_ai(user_input, history):
     """Chat with AI assistant using LangChain"""
+    global face_recognition_event
+
     if llm is None:
         # Fallback responses when model is not available
         if "face" in user_input.lower():
@@ -208,16 +253,28 @@ def chat_with_ai(user_input, history):
             return "I'm here to help with the face recognition system. Ask me about face detection, recognition, or learning new faces!"
 
     try:
+        # Create system message with database context
+        system_content = "You are a helpful assistant with ability to recognize a face and identify user identity."
+
+        # Add database information
+        db_info = get_database_info()
+        system_content += f"\n\n{db_info}"
+
+        # Add specific instructions for recent recognition events
+        if face_recognition_event:
+            system_content += f"\n\nIf the user asks about who just arrived, was detected, or 'who is this', greet {face_recognition_event['name']} appropriately and acknowledge them. Create a personalized greeting message."
+
         # Create messages for the LLM
         messages = [
-            SystemMessage(
-                content="You are a helpful assistant for a face recognition application. Provide helpful information about face detection, recognition, and learning new faces."
-            ),
+            SystemMessage(content=system_content),
             HumanMessage(content=user_input),
         ]
 
         # Get response from LLM
         response = llm.invoke(messages)
+
+        # Clear the face recognition event after using it once to avoid repetition
+        face_recognition_event = None
 
         return response.content
     except Exception as e:
